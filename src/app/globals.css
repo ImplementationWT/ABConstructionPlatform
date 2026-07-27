@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* Neutral palette (slate), color reserved for semantic status badges */
+  --brand-50: #f8fafc;
+  --brand-100: #f1f5f9;
+  --brand-200: #e2e8f0;
+  --brand-300: #cbd5e1;
+  --brand-500: #94a3b8;
+  --brand-600: #334155;
+  --brand-700: #0f172a;
+  --brand-ink: #0f172a;
+  --brand-ink-soft: #ffffff;
+  --brand-border: #e2e8f0;
+
+  /* Primary action color (buttons, CTAs). Change these two lines to re-theme every button at once. */
+  --primary: #1f1f1e;
+  --primary-hover: #2f2f2d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
