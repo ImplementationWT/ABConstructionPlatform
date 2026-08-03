@@ -15,6 +15,11 @@ export const updateUserSchema = z.object({
   allowedProjectIds: z.array(z.string()).default([]),
 });
 
+export const changePasswordSchema = z.object({
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
 export type CreateUserFormValues = z.input<typeof createUserSchema>;
 export type CreateUserInput = z.output<typeof createUserSchema>;
 export type UpdateUserInput = z.output<typeof updateUserSchema>;
+export type ChangePasswordInput = z.output<typeof changePasswordSchema>;

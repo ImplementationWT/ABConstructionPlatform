@@ -10,6 +10,7 @@ import {
   User as UserIcon,
   Check,
   Trash2,
+  KeyRound,
 } from "lucide-react";
 import { MultiSearchableSelect } from "@/components/ui/multi-searchable-select";
 import { Modal } from "@/components/ui/modal";
@@ -80,8 +81,58 @@ function UserRow({
   const [error, setError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
 
   const isSelf = session?.user?.id === user.id;
+
+  function closePasswordModal() {
+    if (isSavingPassword) return;
+    setChangingPassword(false);
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordError(null);
+  }
+
+  async function handleChangePassword() {
+    if (newPassword.length < 8) {
+      setPasswordError("Password must be at least 8 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+
+    setIsSavingPassword(true);
+    setPasswordError(null);
+
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/password`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update password");
+      }
+
+      setChangingPassword(false);
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordChanged(true);
+      setTimeout(() => setPasswordChanged(false), 3000);
+    } catch {
+      setPasswordError("Something went wrong. Please try again.");
+    } finally {
+      setIsSavingPassword(false);
+    }
+  }
 
   async function handleSave() {
     setIsSaving(true);
@@ -260,18 +311,35 @@ function UserRow({
                     Saved
                   </span>
                 )}
+                {passwordChanged && (
+                  <span className="flex items-center gap-1 text-sm font-medium text-[#059669]">
+                    <Check className="h-4 w-4" />
+                    Password updated
+                  </span>
+                )}
               </div>
 
-              {!isSelf && (
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setConfirmingDelete(true)}
-                  className="flex items-center gap-1.5 rounded-xl border border-[#dc2626] px-3 py-2 text-sm font-medium text-[#dc2626] transition hover:-translate-y-0.5 hover:bg-[#dc2626] hover:text-white hover:shadow-md"
+                  onClick={() => setChangingPassword(true)}
+                  className="flex items-center gap-1.5 rounded-xl border border-[#e2e8f0] px-3 py-2 text-sm font-medium text-[#334155] transition hover:-translate-y-0.5 hover:bg-[#f8fafc] hover:shadow-md"
                 >
-                  <Trash2 className="h-4 w-4" />
-                  Delete User
+                  <KeyRound className="h-4 w-4" />
+                  Change Password
                 </button>
-              )}
+
+                {!isSelf && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(true)}
+                    className="flex items-center gap-1.5 rounded-xl border border-[#dc2626] px-3 py-2 text-sm font-medium text-[#dc2626] transition hover:-translate-y-0.5 hover:bg-[#dc2626] hover:text-white hover:shadow-md"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete User
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -309,6 +377,81 @@ function UserRow({
               className="flex items-center gap-1.5 rounded-xl bg-[#dc2626] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#b91c1c] disabled:cursor-not-allowed disabled:opacity-70"
             >
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={changingPassword}
+        onClose={closePasswordModal}
+        title="Change Password"
+      >
+        <div className="flex flex-col gap-5">
+          <p className="text-sm text-[#334155]">
+            Set a new password for{" "}
+            <span className="font-semibold text-[#0f172a]">{user.name}</span>. They
+            will need to use it the next time they sign in.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-[#334155]">
+                New Password
+              </label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  setPasswordError(null);
+                }}
+                className="rounded-xl border border-[#e2e8f0] px-3 py-2 text-sm text-[#0f172a] outline-none transition focus:border-[#0f172a]"
+                placeholder="At least 8 characters"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-[#334155]">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setPasswordError(null);
+                }}
+                className="rounded-xl border border-[#e2e8f0] px-3 py-2 text-sm text-[#0f172a] outline-none transition focus:border-[#0f172a]"
+                placeholder="Re-enter the new password"
+              />
+            </div>
+          </div>
+
+          {passwordError && <p className="text-sm text-[#dc2626]">{passwordError}</p>}
+
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={closePasswordModal}
+              disabled={isSavingPassword}
+              className="rounded-xl border border-[#e2e8f0] px-3 py-1.5 text-sm font-medium text-[#334155] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleChangePassword}
+              disabled={isSavingPassword}
+              className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSavingPassword ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Update Password"
+              )}
             </button>
           </div>
         </div>
