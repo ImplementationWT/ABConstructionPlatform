@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { useForm } from "react-hook-form";
@@ -73,9 +74,17 @@ export function LoginForm() {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="password" className="text-sm font-medium text-[#334155]">
-          Password
-        </label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="password" className="text-sm font-medium text-[#334155]">
+            Password
+          </label>
+          <Link
+            href="/forgot-password"
+            className="text-sm font-medium text-primary hover:text-primary-hover"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <div className="relative">
           <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#94a3b8]" />
           <input
