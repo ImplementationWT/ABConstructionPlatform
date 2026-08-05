@@ -16,7 +16,7 @@ export default function LoginPage() {
             alt="Company logo"
             width={70}
             height={70}
-            className="mb-2"
+            className="mb-2 h-auto"
           />
           <p className="text-sm text-[#64748b]">
             Sign in to your account to continue.

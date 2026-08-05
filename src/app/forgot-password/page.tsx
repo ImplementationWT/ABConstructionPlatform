@@ -16,7 +16,7 @@ export default function ForgotPasswordPage() {
             alt="Company logo"
             width={70}
             height={70}
-            className="mb-2"
+            className="mb-2 h-auto"
           />
           <h1 className="text-lg font-semibold text-[#0f172a]">
             Forgot your password?
