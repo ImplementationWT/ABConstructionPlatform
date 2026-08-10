@@ -26,14 +26,18 @@ function sanitizeFilename(filename: string): string {
   return filename.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
-export async function uploadPhotoToS3(dataUri: string, filename: string): Promise<string> {
+export async function uploadPhotoToS3(
+  dataUri: string,
+  filename: string,
+  folder: string = "daily-reports"
+): Promise<string> {
   const bucket = process.env.AWS_S3_BUCKET_NAME;
   if (!bucket) {
     throw new Error("Missing AWS_S3_BUCKET_NAME environment variable");
   }
 
   const { buffer, mime } = dataUriToBuffer(dataUri);
-  const key = `daily-reports/${randomUUID()}-${sanitizeFilename(filename)}`;
+  const key = `${folder}/${randomUUID()}-${sanitizeFilename(filename)}`;
 
   const client = getS3Client();
   await client.send(

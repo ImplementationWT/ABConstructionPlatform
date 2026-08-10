@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   ClipboardList,
   ClipboardCheck,
+  FileQuestion,
   ShieldCheck,
   Receipt,
   Menu,
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/daily-reports", label: "Daily Reports", icon: ClipboardList },
   { href: "/inspection-requests", label: "AB Inspection Requests", icon: ClipboardCheck },
+  { href: "/rfi-requests", label: "RFI Request", icon: FileQuestion },
 ];
 
 const ADMIN_NAV_ITEM = { href: "/admin", label: "Admin", icon: ShieldCheck };

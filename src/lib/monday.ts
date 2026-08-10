@@ -211,8 +211,9 @@ function dataUriToBlob(dataUri: string): Blob {
   return new Blob([buffer], { type: mime });
 }
 
-export async function uploadPhotoToSubitem(
-  subitemId: string,
+async function uploadFileToMondayColumn(
+  itemId: string,
+  columnId: string,
   dataUri: string,
   filename: string
 ): Promise<void> {
@@ -221,8 +222,8 @@ export async function uploadPhotoToSubitem(
 
   const mutation = `
     mutation ($file: File!) {
-      add_file_to_column (file: $file, item_id: ${JSON.stringify(subitemId)}, column_id: ${JSON.stringify(
-        TRADE_SUBITEM_COLUMNS.photos
+      add_file_to_column (file: $file, item_id: ${JSON.stringify(itemId)}, column_id: ${JSON.stringify(
+        columnId
       )}) {
         id
       }
@@ -243,6 +244,14 @@ export async function uploadPhotoToSubitem(
   if (json.errors) {
     throw new Error(`Monday file upload error: ${JSON.stringify(json.errors)}`);
   }
+}
+
+export async function uploadPhotoToSubitem(
+  subitemId: string,
+  dataUri: string,
+  filename: string
+): Promise<void> {
+  return uploadFileToMondayColumn(subitemId, TRADE_SUBITEM_COLUMNS.photos, dataUri, filename);
 }
 
 // "QC Inspection Request" board.
@@ -318,6 +327,117 @@ export async function createInspectionRequestMondayItem(
   });
 
   return data.create_item.id;
+}
+
+// "RFI Request" board (id 18425892290).
+const RFI_REQUEST_COLUMNS = {
+  status: "status",
+  creationDate: "date4",
+  project: "board_relation_mm63dnp0",
+  trade: "dropdown_mm631paq",
+  subject: "text_mm632e3p",
+  question: "text_mm63xcaf",
+  attachments: "file_mm631kks",
+  requestedBy: "person",
+  mongoId: "text_mm63wr6e",
+};
+
+export interface CreateRfiRequestParams {
+  projectId: string;
+  projectName: string;
+  subject: string;
+  question: string;
+  trades: string[];
+  reporterEmail: string;
+  mongoId: string;
+}
+
+async function changeMondayColumnValue(
+  boardId: string,
+  itemId: string,
+  columnId: string,
+  value: unknown
+): Promise<void> {
+  const mutation = `
+    mutation ($boardId: ID!, $itemId: ID!, $columnId: String!, $value: JSON!) {
+      change_column_value(board_id: $boardId, item_id: $itemId, column_id: $columnId, value: $value) {
+        id
+      }
+    }
+  `;
+
+  await mondayRequest(mutation, {
+    boardId,
+    itemId,
+    columnId,
+    value: JSON.stringify(value),
+  });
+}
+
+export async function createRfiRequestMondayItem(
+  params: CreateRfiRequestParams
+): Promise<string> {
+  const boardId = process.env.MONDAY_RFI_REQUESTS_BOARD_ID;
+  if (!boardId) {
+    throw new Error("Missing MONDAY_RFI_REQUESTS_BOARD_ID environment variable");
+  }
+
+  const reporterId = await getMondayUserIdByEmail(params.reporterEmail);
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  // The "Project Name" column is a board_relation (connect-boards) column: Monday
+  // does not reliably apply that type via create_item's column_values, so it is
+  // set with a follow-up change_column_value call below.
+  const columnValues: Record<string, unknown> = {
+    [RFI_REQUEST_COLUMNS.status]: { label: "New Request" },
+    [RFI_REQUEST_COLUMNS.creationDate]: { date: today },
+    [RFI_REQUEST_COLUMNS.trade]: { labels: params.trades },
+    [RFI_REQUEST_COLUMNS.subject]: params.subject,
+    [RFI_REQUEST_COLUMNS.question]: params.question,
+    [RFI_REQUEST_COLUMNS.mongoId]: params.mongoId,
+  };
+
+  if (reporterId) {
+    columnValues[RFI_REQUEST_COLUMNS.requestedBy] = {
+      personsAndTeams: [{ id: Number(reporterId), kind: "person" }],
+    };
+  }
+
+  const mutation = `
+    mutation ($boardId: ID!, $itemName: String!, $columnValues: JSON!) {
+      create_item(
+        board_id: $boardId
+        item_name: $itemName
+        column_values: $columnValues
+        create_labels_if_missing: true
+      ) {
+        id
+      }
+    }
+  `;
+
+  const data = await mondayRequest<{ create_item: { id: string } }>(mutation, {
+    boardId,
+    itemName: `${params.projectName} | ${params.subject}`,
+    columnValues: JSON.stringify(columnValues),
+  });
+
+  const itemId = data.create_item.id;
+
+  await changeMondayColumnValue(boardId, itemId, RFI_REQUEST_COLUMNS.project, {
+    item_ids: [Number(params.projectId)],
+  });
+
+  return itemId;
+}
+
+export async function uploadRfiAttachment(
+  itemId: string,
+  dataUri: string,
+  filename: string
+): Promise<void> {
+  return uploadFileToMondayColumn(itemId, RFI_REQUEST_COLUMNS.attachments, dataUri, filename);
 }
 
 export async function getMondayProjects(): Promise<MondayProject[]> {
