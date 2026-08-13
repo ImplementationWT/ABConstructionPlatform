@@ -12,6 +12,9 @@ export const rfiRequestSchema = z.object({
   subject: z.string().min(1, "Subject is required"),
   question: z.string().min(1, "Add your question"),
   trades: z.array(z.enum(TRADES)).min(1, "Select at least one trade"),
+  assignedPersonId: z.string().optional(),
+  assignedPersonName: z.string().optional(),
+  assignedPersonEmail: z.string().optional(),
   attachments: z.array(attachmentSchema).default([]),
 });
 

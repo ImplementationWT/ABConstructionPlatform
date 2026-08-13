@@ -26,18 +26,32 @@ export interface ProjectOption {
   name: string;
 }
 
+export interface AssignableUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export function RfiRequestForm({
   projects,
+  assignableUsers,
   onSuccess,
   onCancel,
 }: {
   projects: ProjectOption[];
+  assignableUsers: AssignableUser[];
   onSuccess: () => void;
   onCancel: () => void;
 }) {
   const projectOptions = projects.map((project) => ({
     value: project.id,
     label: project.name,
+  }));
+
+  const assignableUserOptions = assignableUsers.map((user) => ({
+    value: user.id,
+    label: user.name || user.email,
+    sublabel: user.name && user.email ? user.email : undefined,
   }));
 
   const [serverError, setServerError] = useState<string | null>(null);
@@ -57,6 +71,9 @@ export function RfiRequestForm({
       subject: "",
       question: "",
       trades: [],
+      assignedPersonId: "",
+      assignedPersonName: "",
+      assignedPersonEmail: "",
       attachments: [],
     },
   });
@@ -160,6 +177,29 @@ export function RfiRequestForm({
             {(errors.trades.message as string) ?? "Select at least one trade"}
           </p>
         )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className={labelClasses}>Assigned Person</label>
+        <Controller
+          control={control}
+          name="assignedPersonId"
+          render={({ field }) => (
+            <SearchableSelect
+              value={field.value ?? ""}
+              onChange={(id) => {
+                field.onChange(id);
+                const user = assignableUsers.find((u) => u.id === id);
+                setValue("assignedPersonName", user?.name ?? "", { shouldValidate: true });
+                setValue("assignedPersonEmail", user?.email ?? "", { shouldValidate: true });
+              }}
+              options={assignableUserOptions}
+              placeholder="Select a person"
+              searchPlaceholder="Search by name or email..."
+              emptyLabel="No users found"
+            />
+          )}
+        />
       </div>
 
       <div className="flex flex-col gap-1.5">

@@ -339,6 +339,7 @@ const RFI_REQUEST_COLUMNS = {
   question: "text_mm63xcaf",
   attachments: "file_mm631kks",
   requestedBy: "person",
+  assignedPerson: "multiple_person_mm63csvy",
   mongoId: "text_mm63wr6e",
 };
 
@@ -350,6 +351,7 @@ export interface CreateRfiRequestParams {
   trades: string[];
   reporterEmail: string;
   mongoId: string;
+  assignedPersonId?: string;
 }
 
 async function changeMondayColumnValue(
@@ -404,6 +406,12 @@ export async function createRfiRequestMondayItem(
     };
   }
 
+  if (params.assignedPersonId) {
+    columnValues[RFI_REQUEST_COLUMNS.assignedPerson] = {
+      personsAndTeams: [{ id: Number(params.assignedPersonId), kind: "person" }],
+    };
+  }
+
   const mutation = `
     mutation ($boardId: ID!, $itemName: String!, $columnValues: JSON!) {
       create_item(
@@ -438,6 +446,80 @@ export async function uploadRfiAttachment(
   filename: string
 ): Promise<void> {
   return uploadFileToMondayColumn(itemId, RFI_REQUEST_COLUMNS.attachments, dataUri, filename);
+}
+
+export interface MondayUpdate {
+  id: string;
+  textBody: string;
+  createdAt: string;
+  creatorName: string | null;
+}
+
+const ITEM_UPDATES_QUERY = `
+  query ($itemId: [ID!]) {
+    items(ids: $itemId) {
+      updates(limit: 100) {
+        id
+        text_body
+        created_at
+        creator {
+          name
+        }
+      }
+    }
+  }
+`;
+
+export async function getRfiRequestUpdates(itemId: string): Promise<MondayUpdate[]> {
+  const data = await mondayRequest<{
+    items: {
+      updates: {
+        id: string;
+        text_body: string | null;
+        created_at: string;
+        creator: { name: string } | null;
+      }[];
+    }[];
+  }>(ITEM_UPDATES_QUERY, { itemId: [itemId] });
+
+  const updates = data.items[0]?.updates ?? [];
+
+  return updates
+    .map((update) => ({
+      id: update.id,
+      textBody: update.text_body ?? "",
+      createdAt: update.created_at,
+      creatorName: update.creator?.name ?? null,
+    }))
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
+
+export interface MondayAccountUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
+const ACCOUNT_USERS_QUERY = `
+  query {
+    users {
+      id
+      name
+      email
+      enabled
+    }
+  }
+`;
+
+export async function getMondayAccountUsers(): Promise<MondayAccountUser[]> {
+  const data = await mondayRequest<{
+    users: { id: string; name: string; email: string; enabled: boolean }[];
+  }>(ACCOUNT_USERS_QUERY, {});
+
+  return data.users
+    .filter((user) => user.enabled)
+    .map((user) => ({ id: user.id, name: user.name, email: user.email }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getMondayProjects(): Promise<MondayProject[]> {

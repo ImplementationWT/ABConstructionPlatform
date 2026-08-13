@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { getAccessibleProjects } from "@/lib/get-accessible-projects";
 import { getProjectAccessFilter } from "@/lib/get-project-filter";
+import { getMondayAccountUsers } from "@/lib/monday";
 import { RfiRequest } from "@/models/RfiRequest";
 import type { IPhoto } from "@/models/DailyReport";
 import {
@@ -27,11 +28,12 @@ export default async function RfiRequestsPage() {
 
   await connectToDatabase();
 
-  const [accessibleProjects, requestsRaw] = await Promise.all([
+  const [accessibleProjects, requestsRaw, assignableUsers] = await Promise.all([
     getAccessibleProjects(session.user.id),
     getProjectAccessFilter(session.user.id).then((filter) =>
       RfiRequest.find(filter).sort({ createdAt: -1 }).limit(200).lean()
     ),
+    getMondayAccountUsers(),
   ]);
 
   const requests: RfiRequestSummary[] = requestsRaw.map((r) => ({
@@ -41,6 +43,8 @@ export default async function RfiRequestsPage() {
     question: r.question,
     trades: r.trades,
     attachments: (r.attachments ?? []).map((a: IPhoto) => ({ url: a.url, name: a.name })),
+    assignedPersonName: r.assignedPersonName,
+    assignedPersonEmail: r.assignedPersonEmail,
     status: r.status,
   }));
 
@@ -58,7 +62,7 @@ export default async function RfiRequestsPage() {
             Submit requests for information for your projects and track their status.
           </p>
         </div>
-        <NewRfiRequestButton projects={projectOptions} />
+        <NewRfiRequestButton projects={projectOptions} assignableUsers={assignableUsers} />
       </div>
 
       <RfiRequestList requests={requests} />

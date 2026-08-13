@@ -4,9 +4,19 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { RfiRequestForm, type ProjectOption } from "@/components/rfi-requests/rfi-request-form";
+import {
+  RfiRequestForm,
+  type ProjectOption,
+  type AssignableUser,
+} from "@/components/rfi-requests/rfi-request-form";
 
-export function NewRfiRequestButton({ projects }: { projects: ProjectOption[] }) {
+export function NewRfiRequestButton({
+  projects,
+  assignableUsers,
+}: {
+  projects: ProjectOption[];
+  assignableUsers: AssignableUser[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -29,6 +39,7 @@ export function NewRfiRequestButton({ projects }: { projects: ProjectOption[] })
       <Modal open={open} onClose={() => setOpen(false)} title="New RFI Request">
         <RfiRequestForm
           projects={projects}
+          assignableUsers={assignableUsers}
           onSuccess={handleSuccess}
           onCancel={() => setOpen(false)}
         />

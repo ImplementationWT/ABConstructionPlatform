@@ -74,6 +74,9 @@ export async function POST(request: NextRequest) {
     question: parsed.data.question,
     trades: parsed.data.trades,
     attachments: attachmentsWithS3Urls,
+    assignedPersonId: parsed.data.assignedPersonId,
+    assignedPersonName: parsed.data.assignedPersonName,
+    assignedPersonEmail: parsed.data.assignedPersonEmail,
     createdBy: session.user.id,
   });
 
@@ -86,6 +89,7 @@ export async function POST(request: NextRequest) {
       trades: rfiRequest.trades,
       reporterEmail: session.user.email ?? "",
       mongoId: rfiRequest._id.toString(),
+      assignedPersonId: rfiRequest.assignedPersonId,
     });
 
     for (const attachment of originalAttachments) {

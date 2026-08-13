@@ -9,6 +9,9 @@ export interface IRfiRequest {
   question: string;
   trades: string[];
   attachments: IPhoto[];
+  assignedPersonId?: string;
+  assignedPersonName?: string;
+  assignedPersonEmail?: string;
   createdBy: mongoose.Types.ObjectId;
   status: SyncStatus;
   mondayItemId?: string;
@@ -33,6 +36,9 @@ const RfiRequestSchema = new Schema<IRfiRequest>(
     question: { type: String, required: true, trim: true },
     trades: { type: [String], required: true, validate: (v: string[]) => v.length > 0 },
     attachments: { type: [AttachmentSchema], default: [] },
+    assignedPersonId: { type: String },
+    assignedPersonName: { type: String },
+    assignedPersonEmail: { type: String },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     status: {
       type: String,
