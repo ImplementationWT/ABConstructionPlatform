@@ -20,3 +20,18 @@ export const rfiRequestSchema = z.object({
 
 export type RfiRequestFormValues = z.input<typeof rfiRequestSchema>;
 export type RfiRequestInput = z.output<typeof rfiRequestSchema>;
+
+export const rfiUpdateReplySchema = z
+  .object({
+    message: z.string().trim().max(4000, "Message is too long").default(""),
+    attachments: z
+      .array(attachmentSchema)
+      .max(5, "You can attach up to 5 files")
+      .default([]),
+  })
+  .refine((data) => data.message.length > 0 || data.attachments.length > 0, {
+    message: "Write a message or attach a file",
+    path: ["message"],
+  });
+
+export type RfiUpdateReplyInput = z.output<typeof rfiUpdateReplySchema>;

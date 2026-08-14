@@ -448,11 +448,19 @@ export async function uploadRfiAttachment(
   return uploadFileToMondayColumn(itemId, RFI_REQUEST_COLUMNS.attachments, dataUri, filename);
 }
 
+export interface MondayUpdateAsset {
+  id: string;
+  name: string;
+  url: string;
+  fileExtension: string | null;
+}
+
 export interface MondayUpdate {
   id: string;
   textBody: string;
   createdAt: string;
   creatorName: string | null;
+  assets: MondayUpdateAsset[];
 }
 
 const ITEM_UPDATES_QUERY = `
@@ -460,24 +468,69 @@ const ITEM_UPDATES_QUERY = `
     items(ids: $itemId) {
       updates(limit: 100) {
         id
-        text_body
+        body
         created_at
         creator {
           name
+        }
+        assets {
+          id
+          name
+          public_url
+          file_extension
         }
       }
     }
   }
 `;
 
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<\/p>\s*<p[^>]*>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/?p[^>]*>/gi, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .trim();
+}
+
+// Monday's API can only post updates as the account that owns MONDAY_API_TOKEN,
+// so replies sent from this app can't carry the actual app user's identity.
+// We tag the raw HTML body with the real author's name and strip it back out
+// on read, so the chat UI can show the true sender instead of the token's owner.
+const APP_REPLY_PREFIX = /^<b>(.+?)<\/b> \(via Construction Platform\):<br\s*\/?>([\s\S]*)$/i;
+
+function parseUpdateAuthorship(body: string, creatorName: string | null) {
+  const match = body.match(APP_REPLY_PREFIX);
+  if (match) {
+    return { textBody: htmlToPlainText(match[2]), creatorName: htmlToPlainText(match[1]) };
+  }
+  return { textBody: htmlToPlainText(body), creatorName };
+}
+
 export async function getRfiRequestUpdates(itemId: string): Promise<MondayUpdate[]> {
   const data = await mondayRequest<{
     items: {
       updates: {
         id: string;
-        text_body: string | null;
+        body: string | null;
         created_at: string;
         creator: { name: string } | null;
+        assets: {
+          id: string;
+          name: string;
+          public_url: string;
+          file_extension: string | null;
+        }[];
       }[];
     }[];
   }>(ITEM_UPDATES_QUERY, { itemId: [itemId] });
@@ -485,13 +538,111 @@ export async function getRfiRequestUpdates(itemId: string): Promise<MondayUpdate
   const updates = data.items[0]?.updates ?? [];
 
   return updates
-    .map((update) => ({
-      id: update.id,
-      textBody: update.text_body ?? "",
-      createdAt: update.created_at,
-      creatorName: update.creator?.name ?? null,
-    }))
+    .map((update) => {
+      const { textBody, creatorName } = parseUpdateAuthorship(
+        update.body ?? "",
+        update.creator?.name ?? null
+      );
+
+      return {
+        id: update.id,
+        textBody,
+        createdAt: update.created_at,
+        creatorName,
+        assets: (update.assets ?? []).map((asset) => ({
+          id: asset.id,
+          name: asset.name,
+          url: asset.public_url,
+          fileExtension: asset.file_extension,
+        })),
+      };
+    })
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
+
+const CREATE_UPDATE_MUTATION = `
+  mutation ($itemId: ID!, $body: String!) {
+    create_update(item_id: $itemId, body: $body) {
+      id
+      created_at
+    }
+  }
+`;
+
+async function uploadFileToMondayUpdate(
+  updateId: string,
+  dataUri: string,
+  filename: string
+): Promise<MondayUpdateAsset> {
+  const token = getMondayToken();
+  const blob = dataUriToBlob(dataUri);
+
+  const mutation = `
+    mutation ($file: File!) {
+      add_file_to_update (file: $file, update_id: ${JSON.stringify(updateId)}) {
+        id
+        name
+        public_url
+        file_extension
+      }
+    }
+  `;
+
+  const form = new FormData();
+  form.append("query", mutation);
+  form.append("variables[file]", blob, filename);
+
+  const response = await fetch("https://api.monday.com/v2/file", {
+    method: "POST",
+    headers: { Authorization: token },
+    body: form,
+  });
+
+  const json = await response.json();
+  if (json.errors) {
+    throw new Error(`Monday file upload error: ${JSON.stringify(json.errors)}`);
+  }
+
+  const asset = json.data.add_file_to_update;
+  return {
+    id: asset.id,
+    name: asset.name,
+    url: asset.public_url,
+    fileExtension: asset.file_extension,
+  };
+}
+
+export async function createRfiRequestUpdate(
+  itemId: string,
+  authorName: string,
+  message: string,
+  attachments: { url: string; name: string }[] = []
+): Promise<MondayUpdate> {
+  const trimmedMessage = message.trim();
+  const messageHtml =
+    trimmedMessage.length > 0
+      ? escapeHtml(trimmedMessage).replace(/\n/g, "<br>")
+      : "Sent an attachment";
+  const body = `<b>${escapeHtml(authorName)}</b> (via Construction Platform):<br>${messageHtml}`;
+
+  const data = await mondayRequest<{
+    create_update: { id: string; created_at: string };
+  }>(CREATE_UPDATE_MUTATION, { itemId, body });
+
+  const updateId = data.create_update.id;
+
+  const assets: MondayUpdateAsset[] = [];
+  for (const attachment of attachments) {
+    assets.push(await uploadFileToMondayUpdate(updateId, attachment.url, attachment.name));
+  }
+
+  return {
+    id: updateId,
+    textBody: trimmedMessage,
+    createdAt: data.create_update.created_at,
+    creatorName: authorName,
+    assets,
+  };
 }
 
 export interface MondayAccountUser {
