@@ -351,7 +351,7 @@ export interface CreateRfiRequestParams {
   trades: string[];
   reporterEmail: string;
   mongoId: string;
-  assignedPersonId?: string;
+  assignedPersonIds?: string[];
 }
 
 async function changeMondayColumnValue(
@@ -406,9 +406,12 @@ export async function createRfiRequestMondayItem(
     };
   }
 
-  if (params.assignedPersonId) {
+  if (params.assignedPersonIds && params.assignedPersonIds.length > 0) {
     columnValues[RFI_REQUEST_COLUMNS.assignedPerson] = {
-      personsAndTeams: [{ id: Number(params.assignedPersonId), kind: "person" }],
+      personsAndTeams: params.assignedPersonIds.map((id) => ({
+        id: Number(id),
+        kind: "person",
+      })),
     };
   }
 
@@ -425,9 +428,15 @@ export async function createRfiRequestMondayItem(
     }
   `;
 
+  const nameDate = [
+    String(new Date().getMonth() + 1).padStart(2, "0"),
+    String(new Date().getDate()).padStart(2, "0"),
+    new Date().getFullYear(),
+  ].join("-");
+
   const data = await mondayRequest<{ create_item: { id: string } }>(mutation, {
     boardId,
-    itemName: `${params.projectName} | ${params.subject}`,
+    itemName: `${params.subject} - ${params.projectName} - ${nameDate}`,
     columnValues: JSON.stringify(columnValues),
   });
 
@@ -466,6 +475,9 @@ export interface MondayUpdate {
 const ITEM_UPDATES_QUERY = `
   query ($itemId: [ID!]) {
     items(ids: $itemId) {
+      column_values(ids: ["status"]) {
+        text
+      }
       updates(limit: 100) {
         id
         body
@@ -517,9 +529,15 @@ function parseUpdateAuthorship(body: string, creatorName: string | null) {
   return { textBody: htmlToPlainText(body), creatorName };
 }
 
-export async function getRfiRequestUpdates(itemId: string): Promise<MondayUpdate[]> {
+export interface RfiRequestThread {
+  updates: MondayUpdate[];
+  status: string | null;
+}
+
+export async function getRfiRequestUpdates(itemId: string): Promise<RfiRequestThread> {
   const data = await mondayRequest<{
     items: {
+      column_values: { text: string | null }[];
       updates: {
         id: string;
         body: string | null;
@@ -535,9 +553,10 @@ export async function getRfiRequestUpdates(itemId: string): Promise<MondayUpdate
     }[];
   }>(ITEM_UPDATES_QUERY, { itemId: [itemId] });
 
-  const updates = data.items[0]?.updates ?? [];
+  const item = data.items[0];
+  const updates = item?.updates ?? [];
 
-  return updates
+  const sortedUpdates = updates
     .map((update) => {
       const { textBody, creatorName } = parseUpdateAuthorship(
         update.body ?? "",
@@ -558,6 +577,56 @@ export async function getRfiRequestUpdates(itemId: string): Promise<MondayUpdate
       };
     })
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  return {
+    updates: sortedUpdates,
+    status: item?.column_values[0]?.text ?? null,
+  };
+}
+
+const ITEM_STATUSES_QUERY = `
+  query ($itemIds: [ID!]) {
+    items(ids: $itemIds) {
+      id
+      column_values(ids: ["status"]) {
+        text
+      }
+    }
+  }
+`;
+
+export async function getRfiRequestStatuses(
+  itemIds: string[]
+): Promise<Record<string, string>> {
+  if (itemIds.length === 0) return {};
+
+  const statuses: Record<string, string> = {};
+
+  // Keep each batch well under Monday's per-request complexity budget.
+  const BATCH_SIZE = 25;
+  for (let i = 0; i < itemIds.length; i += BATCH_SIZE) {
+    const batch = itemIds.slice(i, i + BATCH_SIZE);
+
+    const data = await mondayRequest<{
+      items: { id: string; column_values: { text: string | null }[] }[];
+    }>(ITEM_STATUSES_QUERY, { itemIds: batch });
+
+    for (const item of data.items) {
+      const text = item.column_values[0]?.text;
+      if (text) statuses[item.id] = text;
+    }
+  }
+
+  return statuses;
+}
+
+export async function setRfiRequestStatus(itemId: string, label: string): Promise<void> {
+  const boardId = process.env.MONDAY_RFI_REQUESTS_BOARD_ID;
+  if (!boardId) {
+    throw new Error("Missing MONDAY_RFI_REQUESTS_BOARD_ID environment variable");
+  }
+
+  await changeMondayColumnValue(boardId, itemId, RFI_REQUEST_COLUMNS.status, { label });
 }
 
 const CREATE_UPDATE_MUTATION = `

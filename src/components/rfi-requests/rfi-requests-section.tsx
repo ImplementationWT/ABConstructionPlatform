@@ -30,6 +30,12 @@ export interface RfiAttachment {
   name: string;
 }
 
+export interface RfiAssignedPerson {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface RfiRequestSummary {
   id: string;
   projectName: string;
@@ -37,9 +43,55 @@ export interface RfiRequestSummary {
   question: string;
   trades: string[];
   attachments: RfiAttachment[];
-  assignedPersonName?: string;
-  assignedPersonEmail?: string;
+  assignedPersons: RfiAssignedPerson[];
   status: "pending_sync" | "synced" | "sync_failed";
+  mondayStatus?: string;
+}
+
+const MONDAY_STATUS_STYLES: Record<string, string> = {
+  "New Request": "bg-blue-50 text-blue-700",
+  Pending: "bg-orange-50 text-orange-700",
+  Answered: "bg-purple-50 text-purple-700",
+  Completed: "bg-green-50 text-green-700",
+  Cancelled: "bg-red-50 text-red-700",
+};
+
+function StatusBadge({
+  mondayStatus,
+  syncStatus,
+}: {
+  mondayStatus?: string;
+  syncStatus: RfiRequestSummary["status"];
+}) {
+  if (mondayStatus) {
+    return (
+      <span
+        className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${
+          MONDAY_STATUS_STYLES[mondayStatus] ?? "bg-gray-100 text-gray-700"
+        }`}
+      >
+        {mondayStatus}
+      </span>
+    );
+  }
+
+  if (syncStatus === "sync_failed") {
+    return (
+      <span className="whitespace-nowrap rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">
+        Sync Failed
+      </span>
+    );
+  }
+
+  if (syncStatus === "pending_sync") {
+    return (
+      <span className="whitespace-nowrap rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">
+        Syncing…
+      </span>
+    );
+  }
+
+  return null;
 }
 
 interface RfiUpdateAsset {
@@ -78,8 +130,19 @@ function UpdateAttachments({ assets }: { assets: RfiUpdateAsset[] }) {
   );
 }
 
-function RfiAnswers({ requestId, synced }: { requestId: string; synced: boolean }) {
+function RfiAnswers({
+  requestId,
+  synced,
+  initialStatus,
+  onStatusChange,
+}: {
+  requestId: string;
+  synced: boolean;
+  initialStatus?: string;
+  onStatusChange?: (status: string | null) => void;
+}) {
   const [updates, setUpdates] = useState<RfiUpdate[] | null>(null);
+  const [status, setStatus] = useState<string | null>(initialStatus ?? null);
   const [error, setError] = useState(false);
   const [message, setMessage] = useState("");
   const [pendingAttachments, setPendingAttachments] = useState<RfiAttachment[]>([]);
@@ -88,6 +151,8 @@ function RfiAnswers({ requestId, synced }: { requestId: string; synced: boolean 
   const [sendError, setSendError] = useState<string | null>(null);
   const listEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const isCompleted = status === "Completed";
 
   useEffect(() => {
     if (!synced) return;
@@ -100,7 +165,11 @@ function RfiAnswers({ requestId, synced }: { requestId: string; synced: boolean 
         return res.json();
       })
       .then((data) => {
-        if (!cancelled) setUpdates(data.updates);
+        if (!cancelled) {
+          setUpdates(data.updates);
+          setStatus(data.status ?? null);
+          onStatusChange?.(data.status ?? null);
+        }
       })
       .catch(() => {
         if (!cancelled) setError(true);
@@ -109,6 +178,7 @@ function RfiAnswers({ requestId, synced }: { requestId: string; synced: boolean 
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestId, synced]);
 
   useEffect(() => {
@@ -166,6 +236,8 @@ function RfiAnswers({ requestId, synced }: { requestId: string; synced: boolean 
 
       const data = await response.json();
       setUpdates((prev) => [...(prev ?? []), data.update]);
+      setStatus(data.status ?? "Pending");
+      onStatusChange?.(data.status ?? "Pending");
       setMessage("");
       setPendingAttachments([]);
     } catch {
@@ -227,7 +299,13 @@ function RfiAnswers({ requestId, synced }: { requestId: string; synced: boolean 
         </div>
       )}
 
-      {synced && !error && updates !== null && (
+      {synced && !error && updates !== null && isCompleted && (
+        <p className="mt-1 text-sm text-[#94a3b8]">
+          This request has been marked as completed, so new replies are disabled.
+        </p>
+      )}
+
+      {synced && !error && updates !== null && !isCompleted && (
         <div className="mt-2 flex flex-col gap-1.5">
           {pendingAttachments.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -308,6 +386,19 @@ function RfiAnswers({ requestId, synced }: { requestId: string; synced: boolean 
 
 export function RfiRequestList({ requests }: { requests: RfiRequestSummary[] }) {
   const [selected, setSelected] = useState<RfiRequestSummary | null>(null);
+  // Overrides the page-load snapshot once we've fetched a request's live
+  // Monday status (opening its thread, or posting a reply from here), so the
+  // badge stays accurate for the rest of the session without a full reload.
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
+
+  function getMondayStatus(req: RfiRequestSummary) {
+    return statusOverrides[req.id] ?? req.mondayStatus;
+  }
+
+  function handleStatusChange(requestId: string, status: string | null) {
+    if (!status) return;
+    setStatusOverrides((prev) => ({ ...prev, [requestId]: status }));
+  }
 
   if (requests.length === 0) {
     return (
@@ -337,10 +428,13 @@ export function RfiRequestList({ requests }: { requests: RfiRequestSummary[] }) 
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 pl-14 text-sm text-[#64748b] sm:pl-0">
-            <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-bold text-yellow-700">
-              <HardHat className="h-3.5 w-3.5 shrink-0" />
-              {req.trades.length} trade{req.trades.length === 1 ? "" : "s"}
-            </span>
+            <StatusBadge mondayStatus={getMondayStatus(req)} syncStatus={req.status} />
+            {req.trades.length > 0 && (
+              <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-bold text-yellow-700">
+                <HardHat className="h-3.5 w-3.5 shrink-0" />
+                {req.trades.length} trade{req.trades.length === 1 ? "" : "s"}
+              </span>
+            )}
             {req.attachments.length > 0 && (
               <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
                 <Paperclip className="h-3.5 w-3.5 shrink-0" />
@@ -359,10 +453,13 @@ export function RfiRequestList({ requests }: { requests: RfiRequestSummary[] }) 
         {selected && (
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-bold text-yellow-700">
-                <HardHat className="h-3.5 w-3.5 shrink-0" />
-                {selected.trades.length} trade{selected.trades.length === 1 ? "" : "s"}
-              </span>
+              <StatusBadge mondayStatus={getMondayStatus(selected)} syncStatus={selected.status} />
+              {selected.trades.length > 0 && (
+                <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-bold text-yellow-700">
+                  <HardHat className="h-3.5 w-3.5 shrink-0" />
+                  {selected.trades.length} trade{selected.trades.length === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
 
             <div className="flex flex-col gap-1">
@@ -372,21 +469,23 @@ export function RfiRequestList({ requests }: { requests: RfiRequestSummary[] }) 
               <span className="text-sm font-medium text-[#0f172a]">{selected.projectName}</span>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold uppercase tracking-wide text-[#94a3b8]">
-                Trades
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {selected.trades.map((trade) => (
-                  <span
-                    key={trade}
-                    className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-xs font-medium text-[#334155]"
-                  >
-                    {trade}
-                  </span>
-                ))}
+            {selected.trades.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-[#94a3b8]">
+                  Trades
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {selected.trades.map((trade) => (
+                    <span
+                      key={trade}
+                      className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-xs font-medium text-[#334155]"
+                    >
+                      {trade}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex flex-col gap-1">
               <span className="text-xs font-semibold uppercase tracking-wide text-[#94a3b8]">
@@ -397,15 +496,22 @@ export function RfiRequestList({ requests }: { requests: RfiRequestSummary[] }) 
 
             <div className="flex flex-col gap-1">
               <span className="text-xs font-semibold uppercase tracking-wide text-[#94a3b8]">
-                Assigned Person
+                Assigned To
               </span>
-              <span className="text-sm font-medium text-[#0f172a]">
-                {selected.assignedPersonName
-                  ? selected.assignedPersonEmail
-                    ? `${selected.assignedPersonName} (${selected.assignedPersonEmail})`
-                    : selected.assignedPersonName
-                  : "Unassigned"}
-              </span>
+              {selected.assignedPersons.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {selected.assignedPersons.map((person) => (
+                    <span
+                      key={person.id}
+                      className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-xs font-medium text-[#334155]"
+                    >
+                      {person.email ? `${person.name} (${person.email})` : person.name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-sm font-medium text-[#0f172a]">Unassigned</span>
+              )}
             </div>
 
             {selected.attachments.length > 0 && (
@@ -438,6 +544,8 @@ export function RfiRequestList({ requests }: { requests: RfiRequestSummary[] }) 
               key={selected.id}
               requestId={selected.id}
               synced={selected.status === "synced"}
+              initialStatus={getMondayStatus(selected)}
+              onStatusChange={(status) => handleStatusChange(selected.id, status)}
             />
           </div>
         )}

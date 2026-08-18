@@ -1,6 +1,12 @@
 import mongoose, { Schema, models, model } from "mongoose";
 import type { SyncStatus, IPhoto } from "@/models/DailyReport";
 
+export interface IAssignedPerson {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface IRfiRequest {
   _id: mongoose.Types.ObjectId;
   projectId: string;
@@ -9,9 +15,7 @@ export interface IRfiRequest {
   question: string;
   trades: string[];
   attachments: IPhoto[];
-  assignedPersonId?: string;
-  assignedPersonName?: string;
-  assignedPersonEmail?: string;
+  assignedPersons: IAssignedPerson[];
   createdBy: mongoose.Types.ObjectId;
   status: SyncStatus;
   mondayItemId?: string;
@@ -28,17 +32,24 @@ const AttachmentSchema = new Schema<IPhoto>(
   { _id: false }
 );
 
+const AssignedPersonSchema = new Schema<IAssignedPerson>(
+  {
+    id: { type: String, required: true },
+    name: { type: String, required: true },
+    email: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const RfiRequestSchema = new Schema<IRfiRequest>(
   {
     projectId: { type: String, required: true },
     projectName: { type: String, required: true, trim: true },
     subject: { type: String, required: true, trim: true },
     question: { type: String, required: true, trim: true },
-    trades: { type: [String], required: true, validate: (v: string[]) => v.length > 0 },
+    trades: { type: [String], default: [] },
     attachments: { type: [AttachmentSchema], default: [] },
-    assignedPersonId: { type: String },
-    assignedPersonName: { type: String },
-    assignedPersonEmail: { type: String },
+    assignedPersons: { type: [AssignedPersonSchema], default: [] },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     status: {
       type: String,

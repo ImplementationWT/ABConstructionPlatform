@@ -21,6 +21,10 @@ const inputClasses =
 
 const labelClasses = "text-sm font-medium text-[#334155]";
 
+function RequiredMark() {
+  return <span className="text-[#dc2626]"> *</span>;
+}
+
 export interface ProjectOption {
   id: string;
   name: string;
@@ -71,9 +75,7 @@ export function RfiRequestForm({
       subject: "",
       question: "",
       trades: [],
-      assignedPersonId: "",
-      assignedPersonName: "",
-      assignedPersonEmail: "",
+      assignedPersons: [],
       attachments: [],
     },
   });
@@ -104,7 +106,10 @@ export function RfiRequestForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
-        <label className={labelClasses}>Project Name</label>
+        <label className={labelClasses}>
+          Project Name
+          <RequiredMark />
+        </label>
         <Controller
           control={control}
           name="projectId"
@@ -131,6 +136,7 @@ export function RfiRequestForm({
       <div className="flex flex-col gap-1.5">
         <label htmlFor="subject" className={labelClasses}>
           Subject
+          <RequiredMark />
         </label>
         <input
           id="subject"
@@ -145,6 +151,7 @@ export function RfiRequestForm({
       <div className="flex flex-col gap-1.5">
         <label htmlFor="question" className={labelClasses}>
           Question
+          <RequiredMark />
         </label>
         <textarea
           id="question"
@@ -172,31 +179,29 @@ export function RfiRequestForm({
             />
           )}
         />
-        {errors.trades && (
-          <p className="text-sm text-[#dc2626]">
-            {(errors.trades.message as string) ?? "Select at least one trade"}
-          </p>
-        )}
       </div>
 
       <div className="flex flex-col gap-1.5">
         <label className={labelClasses}>Assigned Person</label>
         <Controller
           control={control}
-          name="assignedPersonId"
+          name="assignedPersons"
           render={({ field }) => (
-            <SearchableSelect
-              value={field.value ?? ""}
-              onChange={(id) => {
-                field.onChange(id);
-                const user = assignableUsers.find((u) => u.id === id);
-                setValue("assignedPersonName", user?.name ?? "", { shouldValidate: true });
-                setValue("assignedPersonEmail", user?.email ?? "", { shouldValidate: true });
+            <MultiSearchableSelect
+              values={(field.value ?? []).map((person) => person.id)}
+              onChange={(ids) => {
+                field.onChange(
+                  ids.map((id) => {
+                    const user = assignableUsers.find((u) => u.id === id);
+                    return { id, name: user?.name ?? "", email: user?.email ?? "" };
+                  })
+                );
               }}
               options={assignableUserOptions}
-              placeholder="Select a person"
+              placeholder="Select people"
               searchPlaceholder="Search by name or email..."
               emptyLabel="No users found"
+              itemNounPlural="people"
             />
           )}
         />

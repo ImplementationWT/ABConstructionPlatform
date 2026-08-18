@@ -6,15 +6,19 @@ const attachmentSchema = z.object({
   name: z.string().min(1),
 });
 
+const assignedPersonSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  email: z.string(),
+});
+
 export const rfiRequestSchema = z.object({
   projectId: z.string().min(1, "Select a project"),
   projectName: z.string().min(1),
   subject: z.string().min(1, "Subject is required"),
   question: z.string().min(1, "Add your question"),
-  trades: z.array(z.enum(TRADES)).min(1, "Select at least one trade"),
-  assignedPersonId: z.string().optional(),
-  assignedPersonName: z.string().optional(),
-  assignedPersonEmail: z.string().optional(),
+  trades: z.array(z.enum(TRADES)).default([]),
+  assignedPersons: z.array(assignedPersonSchema).default([]),
   attachments: z.array(attachmentSchema).default([]),
 });
 

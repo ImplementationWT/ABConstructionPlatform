@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { getAccessibleProjects } from "@/lib/get-accessible-projects";
 import { getProjectAccessFilter } from "@/lib/get-project-filter";
-import { getMondayAccountUsers } from "@/lib/monday";
+import { getMondayAccountUsers, getRfiRequestStatuses } from "@/lib/monday";
 import { RfiRequest } from "@/models/RfiRequest";
 import type { IPhoto } from "@/models/DailyReport";
 import {
@@ -36,6 +36,12 @@ export default async function RfiRequestsPage() {
     getMondayAccountUsers(),
   ]);
 
+  const syncedItemIds = requestsRaw
+    .filter((r): r is typeof r & { mondayItemId: string } => r.status === "synced" && !!r.mondayItemId)
+    .map((r) => r.mondayItemId);
+
+  const statusMap = await getRfiRequestStatuses(syncedItemIds);
+
   const requests: RfiRequestSummary[] = requestsRaw.map((r) => ({
     id: r._id.toString(),
     projectName: r.projectName,
@@ -43,9 +49,9 @@ export default async function RfiRequestsPage() {
     question: r.question,
     trades: r.trades,
     attachments: (r.attachments ?? []).map((a: IPhoto) => ({ url: a.url, name: a.name })),
-    assignedPersonName: r.assignedPersonName,
-    assignedPersonEmail: r.assignedPersonEmail,
+    assignedPersons: r.assignedPersons ?? [],
     status: r.status,
+    mondayStatus: r.mondayItemId ? statusMap[r.mondayItemId] : undefined,
   }));
 
   const projectOptions = accessibleProjects.map((project) => ({

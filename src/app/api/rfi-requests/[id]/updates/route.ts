@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { RfiRequest } from "@/models/RfiRequest";
 import { userCanAccessProject } from "@/lib/get-project-filter";
-import { createRfiRequestUpdate, getRfiRequestUpdates } from "@/lib/monday";
+import { createRfiRequestUpdate, getRfiRequestUpdates, setRfiRequestStatus } from "@/lib/monday";
 import { rfiUpdateReplySchema } from "@/lib/validation/rfi-request";
 
 export async function GET(
@@ -27,12 +27,12 @@ export async function GET(
   }
 
   if (!rfiRequest.mondayItemId) {
-    return NextResponse.json({ updates: [] });
+    return NextResponse.json({ updates: [], status: null });
   }
 
   try {
-    const updates = await getRfiRequestUpdates(rfiRequest.mondayItemId);
-    return NextResponse.json({ updates });
+    const thread = await getRfiRequestUpdates(rfiRequest.mondayItemId);
+    return NextResponse.json(thread);
   } catch {
     return NextResponse.json(
       { error: "Failed to fetch updates from Monday" },
@@ -70,7 +70,8 @@ export async function POST(
     return NextResponse.json({ error: "RFI request not found" }, { status: 404 });
   }
 
-  if (!rfiRequest.mondayItemId) {
+  const mondayItemId = rfiRequest.mondayItemId;
+  if (!mondayItemId) {
     return NextResponse.json(
       { error: "This request has not synced to Monday yet." },
       { status: 400 }
@@ -79,12 +80,26 @@ export async function POST(
 
   try {
     const update = await createRfiRequestUpdate(
-      rfiRequest.mondayItemId,
+      mondayItemId,
       session.user.name ?? session.user.email ?? "Unknown",
       parsed.data.message,
       parsed.data.attachments
     );
-    return NextResponse.json({ update }, { status: 201 });
+
+    // Don't make the user wait on this: change the status in the background
+    // after the response is sent, giving Monday a moment to settle after the
+    // update is created before changing the status, to avoid racing its own
+    // async processing.
+    after(async () => {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+        await setRfiRequestStatus(mondayItemId, "Pending");
+      } catch (error) {
+        console.error("Failed to set RFI request status to Pending:", error);
+      }
+    });
+
+    return NextResponse.json({ update, status: "Pending" }, { status: 201 });
   } catch {
     return NextResponse.json(
       { error: "Failed to post your reply to Monday" },
