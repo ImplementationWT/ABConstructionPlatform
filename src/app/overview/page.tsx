@@ -69,6 +69,7 @@ export default async function OverviewPage() {
 
   const recentReports: ReportSummary[] = recentReportsRaw.map((r) => ({
     id: r._id.toString(),
+    projectId: r.projectId,
     projectName: r.projectName,
     reportedDate: new Date(r.reportedDate),
     weatherCondition: r.weatherCondition as WeatherCondition,

@@ -5,7 +5,8 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { getAccessibleProjects } from "@/lib/get-accessible-projects";
 import { getProjectAccessFilter } from "@/lib/get-project-filter";
 import { DailyReport } from "@/models/DailyReport";
-import { ReportListItem, type ReportSummary } from "@/components/reports/report-list-item";
+import type { ReportSummary } from "@/components/reports/report-list-item";
+import { DailyReportsList } from "@/components/reports/daily-reports-list";
 import { NewDailyReportButton } from "@/components/reports/new-daily-report-button";
 import type { ITradeEntry, WeatherCondition } from "@/models/DailyReport";
 
@@ -28,6 +29,7 @@ export default async function DailyReportsPage() {
 
   const reports: ReportSummary[] = reportsRaw.map((r) => ({
     id: r._id.toString(),
+    projectId: r.projectId,
     projectName: r.projectName,
     reportedDate: new Date(r.reportedDate),
     weatherCondition: r.weatherCondition as WeatherCondition,
@@ -35,6 +37,11 @@ export default async function DailyReportsPage() {
     hasIssues:
       Boolean(r.otherIssues) ||
       (r.trades ?? []).some((t: ITradeEntry) => t.issues),
+  }));
+
+  const projectOptions = accessibleProjects.map((project) => ({
+    id: project.id,
+    name: project.name,
   }));
 
   return (
@@ -46,22 +53,10 @@ export default async function DailyReportsPage() {
             Track daily progress, manpower, and issues across every trade.
           </p>
         </div>
-        <NewDailyReportButton
-          projects={accessibleProjects.map((project) => ({ id: project.id, name: project.name }))}
-        />
+        <NewDailyReportButton projects={projectOptions} />
       </div>
 
-      {reports.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#e2e8f0] bg-white/60 p-10 text-center text-sm text-[#64748b]">
-          No reports yet. Click &ldquo;New Report&rdquo; to create the first one.
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {reports.map((report) => (
-            <ReportListItem key={report.id} report={report} />
-          ))}
-        </div>
-      )}
+      <DailyReportsList reports={reports} projects={projectOptions} />
     </div>
   );
 }
