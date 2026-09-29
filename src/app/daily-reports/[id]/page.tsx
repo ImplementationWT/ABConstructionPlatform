@@ -106,6 +106,7 @@ export default async function DailyReportDetailPage({
               month: "long",
               day: "numeric",
               year: "numeric",
+              timeZone: "UTC",
             })}
           </span>
           <span className="flex items-center gap-1.5 font-bold">

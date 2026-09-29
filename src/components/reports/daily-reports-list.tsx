@@ -21,13 +21,13 @@ function groupByMonth(reports: ReportSummary[]): MonthGroup[] {
 
   for (const report of reports) {
     const date = report.reportedDate;
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 
     let group = groups.get(key);
     if (!group) {
       group = {
         key,
-        label: date.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+        label: date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }),
         reports: [],
       };
       groups.set(key, group);

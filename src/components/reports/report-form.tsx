@@ -71,7 +71,7 @@ export function ReportForm({
     defaultValues: {
       projectId: "",
       projectName: "",
-      reportedDate: new Date().toISOString().slice(0, 10),
+      reportedDate: new Date().toLocaleDateString("en-CA"),
       weatherCondition: "fair",
       trades: [EMPTY_TRADE],
       otherIssues: "",
