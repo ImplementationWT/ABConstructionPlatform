@@ -14,9 +14,11 @@ const MAX_PHOTOS = 8;
 export function PhotoUpload({
   photos,
   onChange,
+  maxPhotos = MAX_PHOTOS,
 }: {
   photos: PhotoValue[];
   onChange: (photos: PhotoValue[]) => void;
+  maxPhotos?: number;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -26,7 +28,7 @@ export function PhotoUpload({
     if (!fileList || fileList.length === 0) return;
     setError(null);
 
-    const remainingSlots = MAX_PHOTOS - photos.length;
+    const remainingSlots = maxPhotos - photos.length;
     if (remainingSlots <= 0) {
       setError(`You can attach up to ${MAX_PHOTOS} photos per trade`);
       return;
@@ -85,7 +87,7 @@ export function PhotoUpload({
           </div>
         ))}
 
-        {photos.length < MAX_PHOTOS && (
+        {photos.length < maxPhotos && (
           <button
             type="button"
             disabled={isProcessing}

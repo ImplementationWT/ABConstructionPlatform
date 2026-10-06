@@ -16,6 +16,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { userCanAccessProject } from "@/lib/get-project-filter";
 import { DailyReport } from "@/models/DailyReport";
 import { WeatherIcon } from "@/components/reports/weather-icon";
+import { EditDailyReportButton } from "@/components/reports/edit-daily-report-button";
 import { WEATHER_LABELS } from "@/lib/validation/daily-report";
 import type { IPhoto, ITradeEntry, SyncStatus, WeatherCondition } from "@/models/DailyReport";
 
@@ -95,7 +96,25 @@ export default async function DailyReportDetailPage({
       <div className="flex flex-col gap-4 rounded-xl border border-[#e2e8f0] bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-3xl font-bold text-[#0f172a]">{report.projectName}</h1>
-          <SyncStatusBadge status={report.status} syncError={report.syncError} />
+          <div className="flex items-center gap-3">
+            <SyncStatusBadge status={report.status} syncError={report.syncError} />
+            <EditDailyReportButton
+              report={{
+                id: report._id.toString(),
+                otherIssues: report.otherIssues ?? "",
+                trades: report.trades.map((trade: ITradeEntry) => ({
+                  tradeName: trade.tradeName,
+                  manpower: trade.manpower,
+                  progress: trade.progress ?? "",
+                  issues: trade.issues ?? "",
+                  photos: trade.photos.map((photo: IPhoto) => ({
+                    url: photo.url,
+                    name: photo.name,
+                  })),
+                })),
+              }}
+            />
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-[#334155]">

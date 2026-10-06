@@ -41,6 +41,23 @@ export const dailyReportSchema = z.object({
   otherIssues: z.string().optional().default(""),
 });
 
+// Editing a published report: text fields can change and photos can be added,
+// but trades themselves (and their order) are fixed, since each one is linked
+// to a Monday subitem. Entries line up with the report's trades by index.
+export const dailyReportEditSchema = z.object({
+  trades: z.array(
+    z.object({
+      progress: z.string().min(1, "Describe today's progress for this trade"),
+      issues: z.string().optional().default(""),
+      newPhotos: z.array(photoSchema).default([]),
+    })
+  ),
+  otherIssues: z.string().optional().default(""),
+});
+
+export type DailyReportEditFormValues = z.input<typeof dailyReportEditSchema>;
+export type DailyReportEditInput = z.output<typeof dailyReportEditSchema>;
+
 export type DailyReportFormValues = z.input<typeof dailyReportSchema>;
 export type DailyReportInput = z.output<typeof dailyReportSchema>;
 export type TradeEntryInput = z.output<typeof tradeEntrySchema>;

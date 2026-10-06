@@ -13,12 +13,15 @@ import type { ITradeEntry, WeatherCondition } from "@/models/DailyReport";
 
 export const dynamic = "force-dynamic";
 
+// reportedDate is stored as UTC midnight of the calendar day ("2026-10-05" ->
+// 2026-10-05T00:00Z), so the week boundary must be computed in UTC too, or it
+// shifts with the server's local timezone and drops Monday's reports.
 function startOfWeek(date: Date) {
   const d = new Date(date);
-  const day = d.getDay();
+  const day = d.getUTCDay();
   const diff = (day === 0 ? -6 : 1) - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + diff);
+  d.setUTCHours(0, 0, 0, 0);
   return d;
 }
 

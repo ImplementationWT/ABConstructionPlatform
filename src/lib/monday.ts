@@ -201,6 +201,70 @@ export async function createTradeSubitem(params: CreateTradeSubitemParams): Prom
   return data.create_subitem.id;
 }
 
+const ITEM_BOARD_QUERY = `
+  query ($itemIds: [ID!]) {
+    items(ids: $itemIds) {
+      board {
+        id
+      }
+    }
+  }
+`;
+
+// Subitems live on their own auto-generated board, whose id isn't in our env,
+// so look it up from the item itself.
+async function getItemBoardId(itemId: string): Promise<string> {
+  const data = await mondayRequest<{ items: { board: { id: string } }[] }>(ITEM_BOARD_QUERY, {
+    itemIds: [itemId],
+  });
+
+  const boardId = data.items[0]?.board.id;
+  if (!boardId) {
+    throw new Error(`Monday item ${itemId} not found`);
+  }
+  return boardId;
+}
+
+async function changeMondayColumnValues(
+  itemId: string,
+  columnValues: Record<string, unknown>
+): Promise<void> {
+  const boardId = await getItemBoardId(itemId);
+
+  const mutation = `
+    mutation ($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+      change_multiple_column_values(board_id: $boardId, item_id: $itemId, column_values: $columnValues) {
+        id
+      }
+    }
+  `;
+
+  await mondayRequest(mutation, {
+    boardId,
+    itemId,
+    columnValues: JSON.stringify(columnValues),
+  });
+}
+
+export async function updateDailyReportMondayItem(
+  itemId: string,
+  params: { otherIssues: string }
+): Promise<void> {
+  await changeMondayColumnValues(itemId, {
+    [DAILY_REPORT_COLUMNS.otherIssues]: params.otherIssues,
+  });
+}
+
+export async function updateTradeSubitem(
+  subitemId: string,
+  params: { progress: string; issues: string }
+): Promise<void> {
+  await changeMondayColumnValues(subitemId, {
+    [TRADE_SUBITEM_COLUMNS.progress]: params.progress,
+    [TRADE_SUBITEM_COLUMNS.issues]: params.issues,
+  });
+}
+
 function dataUriToBlob(dataUri: string): Blob {
   const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) {
