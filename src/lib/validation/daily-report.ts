@@ -41,12 +41,13 @@ export const dailyReportSchema = z.object({
   otherIssues: z.string().optional().default(""),
 });
 
-// Editing a published report: text fields can change and photos can be added,
-// but trades themselves (and their order) are fixed, since each one is linked
-// to a Monday subitem. Entries line up with the report's trades by index.
+// Editing a published report: manpower and text fields can change and photos can
+// be added, but trades themselves (and their order) are fixed, since each one is
+// linked to a Monday subitem. Entries line up with the report's trades by index.
 export const dailyReportEditSchema = z.object({
   trades: z.array(
     z.object({
+      manpower: z.number().min(0, "Manpower can't be negative"),
       progress: z.string().min(1, "Describe today's progress for this trade"),
       issues: z.string().optional().default(""),
       newPhotos: z.array(photoSchema).default([]),

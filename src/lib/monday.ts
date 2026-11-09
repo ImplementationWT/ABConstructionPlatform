@@ -257,9 +257,10 @@ export async function updateDailyReportMondayItem(
 
 export async function updateTradeSubitem(
   subitemId: string,
-  params: { progress: string; issues: string }
+  params: { manpower: number; progress: string; issues: string }
 ): Promise<void> {
   await changeMondayColumnValues(subitemId, {
+    [TRADE_SUBITEM_COLUMNS.manpower]: String(params.manpower),
     [TRADE_SUBITEM_COLUMNS.progress]: params.progress,
     [TRADE_SUBITEM_COLUMNS.issues]: params.issues,
   });

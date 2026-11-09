@@ -52,6 +52,7 @@ export function EditReportForm({
     resolver: zodResolver(dailyReportEditSchema),
     defaultValues: {
       trades: report.trades.map((trade) => ({
+        manpower: trade.manpower,
         progress: trade.progress,
         issues: trade.issues,
         newPhotos: [],
@@ -97,15 +98,26 @@ export function EditReportForm({
               key={index}
               className="flex flex-col gap-4 rounded-xl border border-[#e2e8f0] bg-white p-5 sm:p-6"
             >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="flex items-center gap-2 text-sm font-bold text-[#0f172a]">
-                  <HardHat className="h-4 w-4 text-[#334155]" />
-                  {trade.tradeName}
-                </span>
-                <span className="flex items-center gap-1.5 rounded-full bg-[#f1f5f9] px-2 py-0.5 text-xs font-bold text-[#334155]">
+              <span className="flex items-center gap-2 text-sm font-bold text-[#0f172a]">
+                <HardHat className="h-4 w-4 text-[#334155]" />
+                {trade.tradeName}
+              </span>
+
+              <div className="flex flex-col gap-1.5">
+                <label className={`${labelClasses} flex items-center gap-1.5`}>
                   <Users className="h-3.5 w-3.5" />
-                  {trade.manpower} worker{trade.manpower === 1 ? "" : "s"}
-                </span>
+                  Manpower
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="e.g. 6"
+                  className={inputClasses}
+                  {...register(`trades.${index}.manpower` as const, { valueAsNumber: true })}
+                />
+                {tradeErrors?.manpower && (
+                  <p className="text-sm text-[#dc2626]">{tradeErrors.manpower.message}</p>
+                )}
               </div>
 
               <div className="flex flex-col gap-1.5">

@@ -109,6 +109,7 @@ export async function PATCH(
   report.otherIssues = parsed.data.otherIssues;
   edits.forEach((edit, i) => {
     const trade = report.trades[i];
+    trade.manpower = edit.manpower;
     trade.progress = edit.progress;
     trade.issues = edit.issues;
     trade.photos.push(...newS3Photos[i]);
@@ -129,6 +130,7 @@ export async function PATCH(
         if (!trade.mondaySubitemId) continue;
 
         await updateTradeSubitem(trade.mondaySubitemId, {
+          manpower: trade.manpower,
           progress: trade.progress,
           issues: trade.issues,
         });
